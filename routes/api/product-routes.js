@@ -7,9 +7,9 @@ const { Product, Category, Tag, ProductTag } = require('../../models');
 router.get('/', async (req, res) => {
   // find all products and be sure to include its associated Category and Tag data
   try {
-    const productData = await Product.findAll({include: [{model: Category, Tag}]
+    const allProducts = await Product.findAll({include: [{Category, Tag}]
     });
-    res.status(200).json(productData);
+    res.status(200).json(allProducts);
 
   } catch (err) {res.status(500).json(err)}
 });
@@ -17,18 +17,16 @@ router.get('/', async (req, res) => {
 // get one product
 router.get('/:id', async (req, res) => {
   try {
-    // find a single product by its `id`
-    const productData = await Product.findByPk(req.params.id, {
-      include: [{model: Category, Tag}]
-
-    }) 
-    res.status(200).json(productData);
-  } catch(err) {
-    res.status(500).json(err);
-  }
+    // find the product at the requested id
+    const atId = await Product.findByPk(req.params.id, {include: [Category, Tag]});
+    // if a product does not exist at the given id send error and return
+    if(!atId) {res.status(404).json({message: "No Product at this id!"}); return;}
+    // send data
+    res.status(200).json(atId);
+  } catch (error) {res.status(500).json(error)}
 });
-  
 
+  
 
 // create new product
 router.post('/', async (req, res) => {
@@ -42,7 +40,7 @@ router.post('/', async (req, res) => {
   */
 
  
-  Product.create({
+ await Product.create({
     product_name: req.body.product_name,
     price: req.body.price,
     stock: req.body.stock,
@@ -70,14 +68,33 @@ router.post('/', async (req, res) => {
 });
 
 // update product
-router.put('/:id', (req, res) => {
+router.put("/:id", async (req, res) => {
   // update product data
-  Product.update(req.body, {
+  await Product.update(req.body, {
     where: {
       id: req.params.id,
     },
   })
-   // .then((product) => { return ProductTag.findAll({ where: { product_id: req.params.id} });})
+    .then((product) => {
+      // find all associated tags from ProductTag
+      return ProductTag.findAll({ where: { product_id: req.params.id } });
+    })
+    .then((productTags) => {
+      // get list of current tag_ids
+      const productTagIds = productTags.map(({ tag_id }) => tag_id);
+      // create filtered list of new tag_ids
+      const newProductTags = req.body.tagIds
+        .filter((tag_id) => !productTagIds.includes(tag_id))
+        .map((tag_id) => {
+          return {
+            product_id: req.params.id,
+            tag_id,
+          };
+        });
+      })
+const productTagsToRemove = productTags
+.filter(({ tag_id }) => !req.body.tagIds.includes(tag_id))
+        .map(({ id }) => id);
 
 
         ProductTag.findAll({
